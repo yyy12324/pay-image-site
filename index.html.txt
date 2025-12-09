@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>9.9元解锁图片网站</title>
+    <style>
+        /* 全局样式 - 可自定义布局/颜色/尺寸 */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "微软雅黑", sans-serif; }
+        body { background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* 管理员登录区 */
+        .admin-login { position: fixed; top: 20px; right: 20px; z-index: 100; }
+        .admin-btn { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        
+        /* 管理员弹窗（登录/上传收款码/审核） */
+        .admin-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center; }
+        .admin-modal-content { background: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 500px; }
+        .admin-modal-content h3 { margin-bottom: 20px; color: #333; }
+        .admin-modal-content input, .admin-modal-content button { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .admin-modal-content button { background: #28a745; color: white; border: none; cursor: pointer; }
+        .admin-modal-content .btn-danger { background: #dc3545; margin-top: 10px; }
+        .admin-modal-content .btn-primary { background: #007bff; }
+        
+        /* 收款码上传区（管理员） */
+        .upload-section { margin: 20px 0; }
+        .upload-section input[type="file"] { border: 1px dashed #ddd; padding: 15px; }
+        
+        /* 付费解锁区（公开） */
+        .pay-section { text-align: center; padding: 50px 0; }
+        .pay-title { font-size: 24px; margin-bottom: 20px; color: #333; }
+        .pay-price { font-size: 36px; color: #e63946; margin-bottom: 20px; }
+        .alipay-code { width: 250px; height: 250px; margin: 0 auto 20px; border: 1px solid #ddd; padding: 10px; }
+        .alipay-code img { width: 100%; height: 100%; object-fit: contain; }
+        .verify-form { max-width: 400px; margin: 0 auto; }
+        
+        /* 图片展示区（解锁后显示） */
+        .image-section { margin-top: 50px; display: none; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .image-card { border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .image-card img { width: 100%; height: 200px; object-fit: cover; }
+        
+        /* 管理员审核面板 */
+        .admin-panel { display: none; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+        .audit-list { margin-top: 10px; max-height: 300px; overflow-y: auto; }
+        .audit-item { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .audit-btn { padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 管理员登录按钮 -->
+        <div class="admin-login">
+            <button class="admin-btn" id="adminLoginBtn">管理员登录</button>
+        </div>
+
+        <!-- 管理员登录弹窗 -->
+        <div class="admin-modal" id="loginModal">
+            <div class="admin-modal-content">
+                <h3>管理员登录</h3>
+                <input type="password" id="adminPwd" placeholder="输入管理员密码">
+                <button id="submitLogin">登录</button>
+                <button class="btn-danger" id="closeLoginModal">关闭</button>
+            </div>
+        </div>
+
+        <!-- 管理员功能弹窗（上传收款码/审核） -->
+        <div class="admin-modal" id="adminFuncModal">
+            <div class="admin-modal-content">
+                <h3>管理员面板</h3>
+                <!-- 收款码上传区 -->
+                <div class="upload-section">
+                    <p>上传支付宝收款码（9.9元固定金额）：</p>
+                    <input type="file" id="alipayCodeUpload" accept="image/*">
+                    <button class="btn-primary" id="uploadCodeBtn">上传收款码</button>
+                    <p id="uploadTip" style="color: #666; margin-top: 10px; font-size: 12px;">
+                        上传后刷新页面生效，收款码将存储在本地缓存
+                    </p>
+                </div>
+                <!-- 审核记录区 -->
+                <div style="margin-top: 30px;">
+                    <p>待审核付款记录：</p>
+                    <div class="audit-list" id="auditList"></div>
+                </div>
+                <button class="btn-danger" id="closeAdminModal">退出管理员</button>
+            </div>
+        </div>
+
+        <!-- 付费解锁区（公开可见） -->
+        <div class="pay-section" id="paySection">
+            <h2 class="pay-title">支付9.9元解锁全站高清图片</h2>
+            <div class="pay-price">¥9.9</div>
+            <!-- 支付宝收款码展示（管理员上传后显示） -->
+            <div class="alipay-code" id="alipayCodeContainer">
+                <img id="alipayCodeImg" src="" alt="请联系管理员上传收款码">
+            </div>
+            <p style="color: #666; margin-bottom: 20px;">请扫码支付9.9元，付款后填写下方信息等待审核解锁</p>
+            <div class="verify-form">
+                <input type="text" id="payOrderNo" placeholder="付款订单号（支付宝账单详情可查）">
+                <input type="text" id="payName" placeholder="付款人姓名（选填）">
+                <button id="submitVerify">提交审核</button>
+            </div>
+        </div>
+
+        <!-- 图片展示区（解锁后显示） -->
+        <div class="image-section" id="imageSection">
+            <!-- 示例图片 - 可自定义替换 -->
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=1" alt="高清图片1"></div>
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=2" alt="高清图片2"></div>
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=3" alt="高清图片3"></div>
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=4" alt="高清图片4"></div>
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=5" alt="高清图片5"></div>
+            <div class="image-card"><img src="https://picsum.photos/250/200?random=6" alt="高清图片6"></div>
+        </div>
+    </div>
+
+    <script>
+        // 核心配置（无需修改）
+        const ADMIN_PASSWORD = "2372268500"; // 管理员密码
+        const PAY_PRICE = 9.9; // 付费价格
+
+        // DOM元素获取
+        const adminLoginBtn = document.getElementById("adminLoginBtn");
+        const loginModal = document.getElementById("loginModal");
+        const adminPwd = document.getElementById("adminPwd");
+        const submitLogin = document.getElementById("submitLogin");
+        const closeLoginModal = document.getElementById("closeLoginModal");
+        const adminFuncModal = document.getElementById("adminFuncModal");
+        const closeAdminModal = document.getElementById("closeAdminModal");
+        const alipayCodeUpload = document.getElementById("alipayCodeUpload");
+        const uploadCodeBtn = document.getElementById("uploadCodeBtn");
+        const uploadTip = document.getElementById("uploadTip");
+        const alipayCodeImg = document.getElementById("alipayCodeImg");
+        const payOrderNo = document.getElementById("payOrderNo");
+        const payName = document.getElementById("payName");
+        const submitVerify = document.getElementById("submitVerify");
+        const auditList = document.getElementById("auditList");
+        const paySection = document.getElementById("paySection");
+        const imageSection = document.getElementById("imageSection");
+
+        // 初始化：加载收款码和审核记录
+        window.onload = () => {
+            // 加载管理员上传的收款码
+            const savedCode = localStorage.getItem("alipayCode");
+            if (savedCode) {
+                alipayCodeImg.src = savedCode;
+            } else {
+                alipayCodeImg.src = "https://picsum.photos/250/250?text=暂无收款码";
+            }
+
+            // 检查当前用户是否已解锁
+            if (localStorage.getItem("isUnlocked") === "true") {
+                paySection.style.display = "none";
+                imageSection.style.display = "grid";
+            }
+
+            // 加载审核记录（仅管理员可见）
+            loadAuditRecords();
+        };
+
+        // 管理员登录弹窗显示
+        adminLoginBtn.addEventListener("click", () => {
+            loginModal.style.display = "flex";
+        });
+
+        // 关闭登录弹窗
+        closeLoginModal.addEventListener("click", () => {
+            loginModal.style.display = "none";
+            adminPwd.value = "";
+        });
+
+        // 管理员登录验证
+        submitLogin.addEventListener("click", () => {
+            const inputPwd = adminPwd.value.trim();
+            if (inputPwd === ADMIN_PASSWORD) {
+                loginModal.style.display = "none";
+                adminFuncModal.style.display = "flex";
+                loadAuditRecords(); // 加载待审核记录
+                alert("管理员登录成功！");
+            } else {
+                alert("管理员密码错误！");
+                adminPwd.value = "";
+            }
+        });
+
+        // 关闭管理员功能弹窗
+        closeAdminModal.addEventListener("click", () => {
+            adminFuncModal.style.display = "none";
+        });
+
+        // 上传支付宝收款码（存储到本地缓存）
+        uploadCodeBtn.addEventListener("click", () => {
+            const file = alipayCodeUpload.files[0];
+            if (!file) {
+                uploadTip.textContent = "请先选择收款码图片！";
+                uploadTip.style.color = "red";
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // 存储到本地缓存
+                localStorage.setItem("alipayCode", e.target.result);
+                alipayCodeImg.src = e.target.result;
+                uploadTip.textContent = "收款码上传成功！刷新页面生效";
+                uploadTip.style.color = "green";
+                // 清空文件选择
+                alipayCodeUpload.value = "";
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 用户提交付款审核
+        submitVerify.addEventListener("click", () => {
+            const orderNo = payOrderNo.value.trim();
+            if (!orderNo) {
+                alert("请输入付款订单号！");
+                return;
+            }
+
+            // 构造审核记录
+            const record = {
+                orderNo: orderNo,
+                name: payName.value.trim() || "匿名",
+                time: new Date().toLocaleString(),
+                ip: returnCitySN?.cip || "未知IP"
+            };
+
+            // 读取现有记录
+            let records = JSON.parse(localStorage.getItem("auditRecords") || "[]");
+            // 检查是否重复提交
+            const isDuplicate = records.some(item => item.orderNo === orderNo);
+            if (isDuplicate) {
+                alert("该订单号已提交，请等待管理员审核！");
+                return;
+            }
+
+            // 保存记录
+            records.push(record);
+            localStorage.setItem("auditRecords", JSON.stringify(records));
+            alert("提交成功！请等待管理员审核（通常5分钟内）");
+
+            // 清空输入框
+            payOrderNo.value = "";
+            payName.value = "";
+
+            // 刷新审核记录
+            loadAuditRecords();
+        });
+
+        // 加载审核记录
+        function loadAuditRecords() {
+            const records = JSON.parse(localStorage.getItem("auditRecords") || "[]");
+            if (records.length === 0) {
+                auditList.innerHTML = "<p>暂无待审核记录</p>";
+                return;
+            }
+
+            // 生成审核列表HTML
+            auditList.innerHTML = records.map((item, index) => `
+                <div class="audit-item">
+                    <div>
+                        订单号：${item.orderNo} | 付款人：${item.name} | 时间：${item.time}
+                    </div>
+                    <button class="audit-btn" onclick="unlockUser(${index})">审核通过</button>
+                </div>
+            `).join("");
+        }
+
+        // 管理员审核通过解锁用户
+        window.unlockUser = (index) => {
+            // 标记当前用户解锁
+            localStorage.setItem("isUnlocked", "true");
+            // 删除该审核记录
+            let records = JSON.parse(localStorage.getItem("auditRecords") || "[]");
+            records.splice(index, 1);
+            localStorage.setItem("auditRecords", JSON.stringify(records));
+            // 刷新审核列表
+            loadAuditRecords();
+            // 提示并刷新页面
+            alert("审核通过！用户已解锁");
+            window.location.reload();
+        };
+
+        // IP定位（用于记录用户IP，无需修改）
+        (function() {
+            window.returnCitySN = {
+                cip: "未知IP",
+                cid: "",
+                cname: ""
+            };
+            const script = document.createElement("script");
+            script.src = "https://pv.sohu.com/cityjson?ie=utf-8";
+            script.onload = () => {};
+            document.body.appendChild(script);
+        })();
+    </script>
+</body>
+</html>
